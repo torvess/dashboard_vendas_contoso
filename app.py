@@ -2,9 +2,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import streamlit as st
-from utils import conn
+from utils import conn, lineplot, barplot, heatmapplot
 
-# parâmetros da pagina
+# page parameters
 st.set_page_config(
 	page_title='Dashboard Contoso',
 	page_icon=':bar_chart:',
@@ -12,112 +12,56 @@ st.set_page_config(
 	initial_sidebar_state='auto'
 )
 
-# Query para buscar os dados
-query = """
-    SELECT TOP 1000
-	SalesKey
-	,YEAR(DateKey) AS SaleYear
-	,DATENAME(MONTH, DateKey) AS SaleMonth
-	,DAY(DateKey) as SaleDay
-	,CAST(DateKey AS DATE) AS SaleDate
-	,e.ChannelName
-	,c.SalesTerritoryCountry
-	,c.SalesTerritoryRegion
-	,c.SalesTerritoryName
-	,d.CityName
-	,b.StoreType
-	,b.StoreName
-	,h.ProductCategoryName
-	,g.ProductSubcategoryName
-	,f.ClassName
-	,f.BrandName
-	,f.ProductName
-	,TotalCost
-	,SalesQuantity
-	,SalesAmount
-	,DiscountQuantity
-	,DiscountAmount
-	,ReturnQuantity
-	,ReturnAmount	
-FROM
-	FactSales a
-LEFT JOIN DimStore b
-	ON a.StoreKey = b.StoreKey
-LEFT JOIN DimSalesTerritory c
-	ON b.GeographyKey = c.GeographyKey
-LEFT JOIN DimGeography d
-	ON b.GeographyKey = d.GeographyKey
-LEFT JOIN DimChannel e
-	ON a.channelKey = e.ChannelKey
-LEFT JOIN DimProduct f
-	ON a.ProductKey = f.ProductKey
-LEFT JOIN DimProductSubcategory g
-	ON f.ProductSubcategoryKey = g.ProductSubcategoryKey
-LEFT JOIN DimProductCategory h
-	ON g.ProductCategoryKey = h.ProductCategoryKey
-    """
+# read data
+with open('queries/sales_data.sql', 'r') as file:
+	query = file.read()
+	dados = pd.read_sql(query, conn)
 
-# Lendo os dados
-dados = pd.read_sql(query, conn)
-
-# tratamento dos dados
+# data preparation
 dados['SaleYear'] = dados['SaleYear'].astype('str')
 
-# Criando a aplicação
-st.title('Dashboard Contoso')
-
-st.write('## Análise de Desempenho')
+# Apply custom CSS
+st.markdown(
+	"""
+	<style>
+	.stHeaderContainer {
+		background-color: #122444;
+		padding: 10px;
+		border-radius: 10px;
+		color: white;
+		text-align: center;
+	}
+	</style>
+	""",
+	unsafe_allow_html=True
+)
+# aplication
+st.markdown(
+	"""<div class="stHeaderContainer">
+			<h1>Dashboard Contoso</h1>
+			<h2>Análise de Desempenho</h2>
+		</div>
+	""",
+	unsafe_allow_html=True
+	)
 
 tab1, tab2, tab3 = st.tabs(['Análise Exploratória', 'Dashboard', 'Tabela detalhada'])
 
 with tab1:
-
 	st.write('## Análise Exploratória')
 
 	with st.container():
 		col1, col2 = st.columns(2)
 
 		with col1:
-			# gráfico com evolução de vendas
-			fig, ax = plt.subplots(figsize=(12, 6))
-			sns.set_theme(style="whitegrid")
-
-			ax.set_title('Evolução de Vendas', fontdict={'fontsize': 18, 'fontweight': 'bold'})
-
-			ax = sns.lineplot(
-							data=dados.groupby('SaleDate').agg({'SalesAmount':'sum'}),
-							x='SaleDate',
-							y='SalesAmount',
-							ax=ax)
-			
-			ax.set_xlabel('')
-			ax.spines[['top', 'right', 'left', 'bottom']].set_visible(False)
-			ax.grid(True, which='both', linestyle='--', linewidth=0.5, color='gray')
-
-			fig.tight_layout()
-
-			st.pyplot(fig)
+			# graph with sales evolution
+			grafico_evolutivo = lineplot(data=dados, x_axis='SaleDate', y_axis='SalesAmount')
+			st.pyplot(grafico_evolutivo)
 
 		with col2:
-			# gráfico com vendas por ano
-			fig, ax = plt.subplots(figsize=(12, 6))
-			sns.set_theme(style="whitegrid")
-
-			ax.set_title('Vendas por Ano', fontdict={'fontsize': 18, 'fontweight': 'bold'})
-
-			ax = sns.barplot(
-							data=dados.groupby('SaleYear')['SalesAmount'].sum().reset_index(),
-							x='SaleYear',
-							y='SalesAmount',
-							ax=ax)
-			
-			ax.set_xlabel('')
-			ax.spines[['top', 'right', 'left', 'bottom']].set_visible(False)
-			ax.grid(True, which='both', linestyle='--', linewidth=0.5, color='gray')
-
-			fig.tight_layout()
-
-			st.pyplot(fig)
+			# graph with sales by year
+			vendas_ano = barplot(data=dados, x_axis='SaleYear', y_axis='SalesAmount')
+			st.pyplot(vendas_ano)
 
 	st.markdown("""
 				* O ano com maior montante de vendas em valor foi 2007
@@ -129,104 +73,33 @@ with tab1:
 		col1, col2 = st.columns(2)
 
 		with col1:
-			# gráfico com vendas por país
-			fig, ax = plt.subplots(figsize=(12, 6))
-			sns.set_theme(style='whitegrid')
+			# graph with sales by country
+			vendas_pais = barplot(data=dados, x_axis='SalesTerritoryCountry', y_axis='SalesAmount')
 
-			ax.set_title('Vendas por País', fontdict={'fontsize': 18, 'fontweight': 'bold'})
-
-			ax = sns.barplot(
-							data=dados.groupby('SalesTerritoryCountry')['SalesAmount'].sum().reset_index().sort_values('SalesAmount', ascending=False).head(15),
-							x='SalesTerritoryCountry',
-							y='SalesAmount',
-							ax=ax)
-
-			ax.set_xlabel('')
-			ax.xaxis.set_tick_params(rotation=45)
-			ax.spines[['top', 'right', 'left', 'bottom']].set_visible(False)
-			ax.grid(True, which='both', linestyle='--', linewidth=0.5, color='gray')
-
-			fig.tight_layout()
-
-			st.pyplot(fig)
-
-			
+			st.pyplot(vendas_pais)
 
 		with col2:
-			# gráfico com vendas por canal
-			fig, ax = plt.subplots(figsize=(12, 6))
-			sns.set_theme(style="whitegrid")
-
-			ax.set_title('Vendas por Canal', fontdict={'fontsize': 18, 'fontweight': 'bold'})
-
-			ax = sns.barplot(
-							data=dados.groupby('ChannelName')['SalesAmount'].sum().reset_index(),
-							x='ChannelName',
-							y='SalesAmount',
-							ax=ax)
-			
-			ax.set_xlabel('')
-			ax.spines[['top', 'right', 'left', 'bottom']].set_visible(False)
-			ax.grid(True, which='both', linestyle='--', linewidth=0.5, color='gray')
-
-			fig.tight_layout()
-
-			st.pyplot(fig)
-
+			# graph with sales by channel
+			vendas_canal = barplot(data=dados, x_axis='ChannelName', y_axis='SalesAmount')
+			st.pyplot(vendas_canal)
 
 	st.markdown("""
 				* EUA lidera o montante de vendas
 				* O canal com maior valor em vendas foi Store
 			 	""")
 	
-
 	with st.container():
 		col1, col2 = st.columns(2)
 
 		with col1:
-			# gráfico com vendas por loja
-			fig, ax = plt.subplots(figsize=(12, 6))
-			sns.set_theme(style='whitegrid')
-
-			ax.set_title('Vendas por Loja', fontdict={'fontsize': 18, 'fontweight': 'bold'})
-
-			ax = sns.barplot(
-							data=dados.groupby('StoreName')['SalesAmount'].sum().reset_index().sort_values('SalesAmount', ascending=False).head(15),
-							x='StoreName',
-							y='SalesAmount',
-							ax=ax)
-
-			ax.set_xlabel('')
-			ax.xaxis.set_tick_params(rotation=45)
-			ax.spines[['top', 'right', 'left', 'bottom']].set_visible(False)
-			ax.grid(True, which='both', linestyle='--', linewidth=0.5, color='gray')
-
-			fig.tight_layout()
-
-			st.pyplot(fig)
+			# graph with sales by store
+			vendas_loja = barplot(data=dados, x_axis='StoreName', y_axis='SalesAmount')
+			st.pyplot(vendas_loja)
 
 		with col2:
-			# gráfico com vendas por marca
-			fig, ax = plt.subplots(figsize=(12, 6))
-			sns.set_theme(style="whitegrid")
-
-			ax.set_title('Vendas por Marca', fontdict={'fontsize': 18, 'fontweight': 'bold'})
-
-			ax = sns.barplot(
-							data=dados.groupby('BrandName')['SalesAmount'].sum().reset_index().sort_values('SalesAmount', ascending=False).head(15),
-							x='BrandName',
-							y='SalesAmount',
-							ax=ax)
-			
-			ax.set_xlabel('')
-			ax.xaxis.set_tick_params(rotation=45)
-			ax.spines[['top', 'right', 'left', 'bottom']].set_visible(False)
-			ax.grid(True, which='both', linestyle='--', linewidth=0.5, color='gray')
-
-			fig.tight_layout()
-
-			st.pyplot(fig)
-
+			# graph sales by brand
+			vendas_marca = barplot(data=dados, x_axis='BrandName', y_axis='SalesAmount')
+			st.pyplot(vendas_marca)
 
 	st.markdown("""
 				* Entre as 10 primeiras lojas em vendas estão lojas da Europa, América do Norte e Ásia
@@ -237,54 +110,144 @@ with tab1:
 		col1, col2 = st.columns(2)
 
 		with col1:
-			# gráfico com vendas por classe
-			fig, ax = plt.subplots(figsize=(12, 6))
-			sns.set_theme(style='whitegrid')
-
-			ax.set_title('Vendas por Classe', fontdict={'fontsize': 18, 'fontweight': 'bold'})
-
-			ax = sns.barplot(
-							data=dados.groupby('ClassName')['SalesAmount'].sum().reset_index().sort_values('SalesAmount', ascending=False),
-							x='ClassName',
-							y='SalesAmount',
-							ax=ax)
-
-			ax.set_xlabel('')
-			ax.xaxis.set_tick_params(rotation=45)
-			ax.spines[['top', 'right', 'left', 'bottom']].set_visible(False)
-			ax.grid(True, which='both', linestyle='--', linewidth=0.5, color='gray')
-
-			fig.tight_layout()
-
-			st.pyplot(fig)
+		# graph sales by class
+			vendas_classe = barplot(data=dados, x_axis='ClassName', y_axis='SalesAmount')
+			st.pyplot(vendas_classe)
 
 		with col2:
-			# gráfico com vendas por subcategoria
-			fig, ax = plt.subplots(figsize=(12, 6))
-			sns.set_theme(style="whitegrid")
-
-			ax.set_title('Vendas por Quantidade Vendida', fontdict={'fontsize': 18, 'fontweight': 'bold'})
-
-			ax = sns.barplot(
-							data=dados.groupby('SaleYear')['SalesQuantity'].sum().reset_index(),
-							x='SaleYear',
-							y='SalesQuantity',
-							ax=ax)
-			
-			ax.set_xlabel('')
-			ax.xaxis.set_tick_params(rotation=45)
-			ax.spines[['top', 'right', 'left', 'bottom']].set_visible(False)
-			ax.grid(True, which='both', linestyle='--', linewidth=0.5, color='gray')
-
-			fig.tight_layout()
-
-			st.pyplot(fig)
-
+			# graph salesquantity by year
+			venda_voluma_ano = barplot(data=dados, x_axis='SaleYear', y_axis='SalesQuantity')
+			st.pyplot(venda_voluma_ano)
 
 	st.markdown("""
 				* Produtos de classe regular lideram as vendas
 				* Apesar de 2007 ter o maior montante em vendas, foi 2009 que ficou na frente em vendas em quantidade, o que pode indicar: baixa nos preços, mudança de posicionamento da empresa ou produto, vender mais produtos com preço de venda melhor ou novas concorrências com mesma qualidade e preço menores
 			 	""")
+
+	with st.container():
+		col1, col2 = st.columns(2)
+
+		with col1:
+			# graph heatmap
+			correlation_matrix = dados[['TotalCost', 'SalesAmount', 'SalesQuantity', 'DiscountAmount', 'ReturnAmount']].corr()
+			mapa_valor = heatmapplot(data=correlation_matrix)
+			st.pyplot(mapa_valor)
+
+		with col2:
+			st.empty()
+
+	st.markdown("""
+			 A única correlação forte esta em custo e valor vendido, o que faz sentido e mostra que a empresa repassa os custos que recebe
+			 """)
+	
+	with st.container():
+		col1, col2, col3 = st.columns(3)
+
+		with col1:
+			# graph with number of stores by year
+			store_year, ax = plt.subplots(figsize=(15, 8))
+			sns.set_theme(style='whitegrid')
+
+			ax.set_title('Number of stores by year', fontdict={'fontsize': 18, 'fontweight': 'bold'})
+
+			sns.barplot(data=dados.groupby('SaleYear')['StoreName'].nunique().reset_index(), x='SaleYear', y='StoreName', ax=ax)
+
+			ax.set_xlabel('')
+			ax.set_ylabel('')
+			ax.set_yticks([])
+			#ax.spines[['top', 'right', 'left', 'bottom']].set_visible(False)
+			ax.xaxis.set_tick_params(rotation=45)
+			for p in ax.patches:
+				ax.annotate(format(p.get_height(), '.0f'), 
+							(p.get_x() + p.get_width() / 2., p.get_height()), 
+							ha = 'center', va = 'center', 
+							xytext = (0, 9), 
+							textcoords = 'offset points')
+				
+			store_year.tight_layout()
+
+			st.pyplot(store_year)
+
+		with col2:
+			# ticket average by year
+			average_ticket_year = dados.groupby('SaleYear').apply(
+														lambda x: x['SalesAmount'].sum() / x['SalesKey'].nunique()
+														).reset_index().rename(columns={0: 'TicketMedio'})
+
+			fig_average_ticket_year, ax = plt.subplots(figsize=(15, 8))
+			sns.set_theme(style='whitegrid')
+
+			ax.set_title('Ticket Médio por Ano', fontdict={'fontsize': 18, 'fontweight': 'bold'})
+
+			sns.barplot(data=average_ticket_year, x='SaleYear', y='TicketMedio', ax=ax)
+
+			ax.set_xlabel('')
+			ax.set_ylabel('')
+			ax.set_yticks([])
+			#ax.spines[['top', 'right', 'left', 'bottom']].set_visible(False)
+			ax.xaxis.set_tick_params(rotation=45)
+			for p in ax.patches:
+				ax.annotate(f'R$ {p.get_height():,.2f}', 
+							(p.get_x() + p.get_width() / 2., p.get_height()), 
+							ha = 'center', va = 'center', 
+							xytext = (0, 9), 
+							textcoords = 'offset points')
+				
+			fig_average_ticket_year.tight_layout()
+
+			st.pyplot(fig_average_ticket_year)
+
+		with col3:
+			# average quantity of sales by ticket and year
+			qtd_cupom_ano = dados.groupby('SaleYear').apply(
+																lambda x: x['SalesQuantity'].sum() / x['SalesKey'].nunique()
+																).reset_index().rename(columns={0: 'QuantidadeMediaVenda'})
+
+			fig_qtd_cupom_ano, ax = plt.subplots(figsize=(15, 8))
+			sns.set_theme(style='whitegrid')
+
+			ax.set_title('Average Quantity of Sales by Ticket and Year ', fontdict={'fontsize': 18, 'fontweight': 'bold'})
+
+			sns.barplot(data=qtd_cupom_ano, x='SaleYear', y='QuantidadeMediaVenda', ax=ax)
+
+			ax.set_xlabel('')
+			ax.set_ylabel('')
+			ax.set_yticks([])
+			#ax.spines[['top', 'right', 'left', 'bottom']].set_visible(False)
+			ax.xaxis.set_tick_params(rotation=45)
+			for p in ax.patches:
+				ax.annotate(f'{p.get_height():,.2f}', 
+							(p.get_x() + p.get_width() / 2., p.get_height()), 
+							ha = 'center', va = 'center', 
+							xytext = (0, 9), 
+							textcoords = 'offset points')
+    
+			fig_qtd_cupom_ano.tight_layout()
+
+			st.pyplot(fig_qtd_cupom_ano)
+
+	qtd_vendas_ano = (
+            dados.groupby('SaleYear')['SalesKey']
+            .count()
+            .reset_index()
+            .rename(columns={'SaleYear':'Year', 'SalesKey': 'Quantity Sales'})
+            )
+
+	st.write('## Quantidade de Vendas por Ano')
+
+	qtd_vendas_ano['Var % LY'] = qtd_vendas_ano['Quantity Sales'].pct_change() * 100
+	qtd_vendas_ano.style.format({'Quantity Sales': '{:,.0f}', 'Var % LY': '{:.2f}%'})
+	st.dataframe(qtd_vendas_ano.style.format({'Quantity Sales': '{:,.0f}', 'Var % LY': '{:.2f}%'}), hide_index=True)
+
+	st.markdown("""
+			 * O número de lojas se manteve constante
+			 * O ticket médio se manteve aumentou nos anos
+			 * A quantidade média de vendas por cupom aumentou nos anos
+			 * O número de vendas faturadas caiu nos anos
+			 """)
+	
+	st.markdown('Podemos concluir que existe um **aumento pequeno do ticket médio**, existe um **aumento considerável de quantidade de produtos vendidos por cupom**, o que indica que os produtos vendidos são mais baratos do que costumava-se vender, olhando para a **evolução de vendas o valor diminui ao longo dos anos** e ao analisar a **quantidade de vendas faturadas nos anos houve uma redução considerável** o que pode ser um indicativo de que a empresa esta vendendo produtos mais baratos/sem procura no mercado ou que a concorrência esta vendendo produtos de mesma qualidade e preço menores fazendo com os clientes busquem esses produtos')
+
 	
 	with tab2:
 		st.write('Desenvolver dashboard')
