@@ -45,7 +45,7 @@ st.markdown(
 	unsafe_allow_html=True
 	)
 
-tab1, tab2, tab3 = st.tabs(['Análise Exploratória', 'Dashboard', 'Tabela detalhada'])
+tab1, tab2 = st.tabs(['Análise Exploratória', 'Dashboard'])
 
 with tab1:
 	st.write('## Análise Exploratória')
@@ -250,16 +250,87 @@ with tab1:
 
 	
 	with tab2:
-		st.write('Desenvolver dashboard')
+		# create filters
+		with st.container():
+			col1, col2, col3 = st.columns(3)
 
-	with tab3:
-		columns = st.multiselect('Selecione as colunas', sorted(dados.columns))
-		
-		st.dataframe(dados[columns], hide_index=True)
+			with col1:
+				sel_ano = st.selectbox('Selecione o ano: ', sorted(dados['SaleYear'].unique()), index=None, placeholder='Selecione uma opção')
+				sel_mes = st.selectbox('Selecione o mês: ', sorted(dados['SaleMonth'].unique()), index=None, placeholder='Selecione uma opção')
+				sel_dia = st.selectbox('Selecione o dia :', sorted(dados['SaleDay'].unique()), index=None, placeholder='Selecione uma opção')
 
-		st.download_button(
-			label='Download CSV',
-			data=dados[columns].to_csv(index=False),
-			file_name='dados.csv',
-			mime='text/csv'
-		)
+			with col2:
+				sel_pais = st.selectbox('Selecione o país: ', sorted(dados['SalesTerritoryCountry'].unique()), index=None, placeholder='Selecione uma opção')
+				sel_loja = st.selectbox('Selecione a loja: ', sorted(dados['StoreName'].unique()), index=None, placeholder='Selecione uma opção')
+				sel_marca = st.selectbox('Selecione a marca: ', sorted(dados['BrandName'].unique()), index=None, placeholder='Selecione uma opção')
+
+			with col3:
+				sel_canal = st.selectbox('Selecione o canal: ', sorted(dados['ChannelName'].unique()), index=None, placeholder='Selecione uma opção')
+				sel_classe = st.selectbox('Selecione a classe: ', sorted(dados['ClassName'].unique()), index=None, placeholder='Selecione uma opção')
+				sel_categoria = st.selectbox('Selecione a categoria: ', sorted(dados['ProductCategoryName'].unique()), index=None, placeholder='Selecione uma opção')
+
+			# Apply filters
+			filtered_data = dados.copy()
+
+			if sel_ano:
+				filtered_data = filtered_data[filtered_data['SaleYear'] == sel_ano]
+
+			if sel_mes:
+				filtered_data = filtered_data[filtered_data['SaleMonth'] == sel_mes]
+
+			if sel_dia:
+				filtered_data = filtered_data[filtered_data['SaleDay'] == sel_dia]
+
+			if sel_pais:
+				filtered_data = filtered_data[filtered_data['SalesTerritoryCountry'] == sel_pais]
+
+			if sel_loja:
+				filtered_data = filtered_data[filtered_data['StoreName'] == sel_loja]
+
+			if sel_marca:
+				filtered_data = filtered_data[filtered_data['BrandName'] == sel_marca]
+
+			if sel_canal:
+				filtered_data = filtered_data[filtered_data['ChannelName'] == sel_canal]
+
+			if sel_classe:
+				filtered_data = filtered_data[filtered_data['ClassName'] == sel_classe]
+
+			if sel_categoria:
+				filtered_data = filtered_data[filtered_data['ProductCategoryName'] == sel_categoria]
+
+		with st.container():
+			col1, col2 = st.columns(2)
+
+			with col1:
+				evolucao_volume_vendas = lineplot(data=filtered_data, x_axis='SaleDate', y_axis='SalesQuantity')
+				st.pyplot(evolucao_volume_vendas)
+
+			with col2:
+				evolucao_valor_vendas = lineplot(data=filtered_data, x_axis='SaleDate', y_axis='SalesAmount')
+				st.pyplot(evolucao_valor_vendas)
+
+		with st.container():
+			# Display dataframe
+			columns = st.multiselect('Selecionar apenas colunas desejadas: ', sorted(filtered_data.columns), placeholder='Selecione as colunas')
+			
+			if not columns:
+				st.dataframe(filtered_data, hide_index=True)
+
+				st.download_button(
+				label='Download CSV',
+				data=filtered_data.to_csv(index=False),
+				file_name='dados.csv',
+				mime='text/csv'
+			)
+
+			else:
+				st.dataframe(filtered_data[columns], hide_index=True)
+
+				st.download_button(
+					label='Download CSV',
+					data=filtered_data[columns].to_csv(index=False),
+					file_name='dados.csv',
+					mime='text/csv'
+				)
+				
